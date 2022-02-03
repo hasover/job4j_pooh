@@ -11,22 +11,26 @@ public class TopicService implements Service {
     public Resp process(Req req) {
         String method = req.method();
         if (method.equals("POST")) {
-            for(var topic : clients.values()) {
-                topic.putIfAbsent(req.name(), new ConcurrentLinkedQueue<>());
-                topic.get(req.name()).add(req.text());
+            var topics = clients.get(req.name());
+            if (topics == null) {
+                return new Resp("No topics found. Data sent ignored", 400);
+            }
+            for(var topic : topics.values()) {
+                topic.add(req.text());
             }
             return new Resp("Request successful", 200);
         } else if (method.equals("GET")) {
 
-            boolean isClientPresent = clients.putIfAbsent(req.id(), new ConcurrentHashMap<>()) != null;
-            if (!isClientPresent) {
-                return new Resp("New client for this topic", 400);
+            clients.putIfAbsent(req.name(), new ConcurrentHashMap<>());
+            var clientQueue = clients.get(req.name()).putIfAbsent(req.id(), new ConcurrentLinkedQueue<>());
+            if (clientQueue == null) {
+                return new Resp("New consumer for this topic created", 200);
             }
 
-            String text = clients.get(req.id()).get(req.name()).poll();
+            String text = clientQueue.poll();
 
             if (text == null) {
-                return new Resp("No messages for this topic", 400);
+                return new Resp("No messages for this topic queue", 400);
             }
             return new Resp(text, 200);
         }
